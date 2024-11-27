@@ -8,18 +8,38 @@ import { whatsappService } from './services/whatsapp.js';
 
 const app = express();
 const server = createServer(app);
+
+// Enhanced CORS configuration
+app.use(cors({
+  origin: ['http://localhost:5173', config.clientUrl],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+
+// Enhanced Socket.IO configuration
 const io = new Server(server, {
   cors: {
-    origin: config.clientUrl,
-    methods: ["GET", "POST"]
-  }
+    origin: ['http://localhost:5173', config.clientUrl],
+    methods: ['GET', 'POST'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-app.use(cors());
-app.use(express.json());
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Socket.io setup
 io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
   setupSocketHandlers(socket);
 });
 
@@ -27,8 +47,9 @@ io.on('connection', (socket) => {
 setupWhatsAppEvents(io);
 
 // Start server
-server.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`);
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
 // Graceful shutdown

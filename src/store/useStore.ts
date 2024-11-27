@@ -13,6 +13,7 @@ interface State {
   setQrCode: (qrCode: string | null) => void;
   setConfig: (config: SystemConfig) => void;
   addLog: (log: Omit<LogEntry, 'id'>) => void;
+  clearLogs: () => void;
 }
 
 export const useStore = create<State>((set) => ({
@@ -23,11 +24,18 @@ export const useStore = create<State>((set) => ({
   config: null,
   logs: [],
   setUser: (user) => set({ user }),
-  setIsConnected: (isConnected) => set({ isConnected }),
-  setQrCode: (qrCode) => set({ qrCode }),
+  setIsConnected: (isConnected) => {
+    console.log('Setting connection status:', isConnected);
+    set({ isConnected });
+  },
+  setQrCode: (qrCode) => {
+    console.log('Setting QR code:', qrCode ? 'received' : 'cleared');
+    set({ qrCode });
+  },
   setConfig: (config) => set({ config }),
   addLog: (log) =>
     set((state) => ({
       logs: [{ ...log, id: crypto.randomUUID() }, ...state.logs],
     })),
+  clearLogs: () => set({ logs: [] }),
 }));

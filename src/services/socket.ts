@@ -20,12 +20,21 @@ class SocketService extends EventEmitter {
   }
 
   connect() {
-    if (this.socket?.connected) return;
+    if (this.socket?.connected) {
+      console.log('Socket already connected');
+      return;
+    }
 
+    console.log('Connecting to socket server at:', SOCKET_URL);
+    
     this.socket = io(SOCKET_URL, {
-      reconnection: false,
+      reconnection: true,
+      reconnectionAttempts: RECONNECT_CONFIG.MAX_ATTEMPTS,
+      reconnectionDelay: RECONNECT_CONFIG.INTERVAL,
       timeout: 10000,
       transports: ['websocket', 'polling'],
+      forceNew: true,
+      autoConnect: true
     });
 
     this.setupEventListeners();
@@ -35,7 +44,7 @@ class SocketService extends EventEmitter {
     if (!this.socket) return;
 
     this.socket.on(SOCKET_EVENTS.CONNECT, () => {
-      console.log('Socket connected');
+      console.log('Socket connected successfully');
       this.reconnectAttempts = 0;
       this.emit(SOCKET_EVENTS.CONNECT);
       this.socket?.emit('initialize');
@@ -43,48 +52,43 @@ class SocketService extends EventEmitter {
 
     this.socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
       console.log('Socket disconnected:', reason);
-      this.handleReconnect();
       this.emit(SOCKET_EVENTS.DISCONNECT, reason);
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, try reconnecting
+        this.connect();
+      }
     });
 
     this.socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
-      this.handleReconnect();
       this.emit(SOCKET_EVENTS.ERROR, error);
     });
 
     // WhatsApp specific events
     this.socket.on(SOCKET_EVENTS.QR_CODE, (qr: string) => {
+      console.log('QR Code received from socket');
       this.emit(SOCKET_EVENTS.QR_CODE, qr);
     });
 
     this.socket.on(SOCKET_EVENTS.READY, () => {
+      console.log('WhatsApp client ready');
       this.emit(SOCKET_EVENTS.READY);
     });
 
     this.socket.on(SOCKET_EVENTS.MESSAGE, (message: any) => {
+      console.log('New message received:', message);
       this.emit(SOCKET_EVENTS.MESSAGE, message);
+    });
+
+    // Handle errors
+    this.socket.on('error', (error: any) => {
+      console.error('Socket error:', error);
+      this.emit(SOCKET_EVENTS.ERROR, error);
     });
   }
 
-  private handleReconnect() {
-    if (this.reconnectTimer) {
-      window.clearTimeout(this.reconnectTimer);
-    }
-
-    if (this.reconnectAttempts < RECONNECT_CONFIG.MAX_ATTEMPTS) {
-      this.reconnectAttempts++;
-      this.reconnectTimer = window.setTimeout(() => {
-        console.log(`Reconnecting... Attempt ${this.reconnectAttempts}`);
-        this.disconnect();
-        this.connect();
-      }, RECONNECT_CONFIG.INTERVAL);
-    } else {
-      this.emit('reconnect_failed');
-    }
-  }
-
   disconnect() {
+    console.log('Disconnecting socket...');
     if (this.reconnectTimer) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
